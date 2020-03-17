@@ -60,11 +60,36 @@ for date in covid_df.Date.unique():
 # This line drops the undesired columns after the merge because only these entries have '(' in the name
 covid_df = covid_df[covid_df['Country/Region'].str.contains('\(')!=True]
 
-print(covid_df['Country/Region'].unique().tolist())
+# Taiwan had an asterisk next to its name because it is considered by many to be a part of China. Since it is
+# disputed anyway, since Chinese cases are separated by province and since it is the Taiwaneese government that
+# decided how to handle Covid-19 cases, I decided to consider it as a separate country
+# So I only removed the asterisk in the name
+covid_df = covid_df.replace({'Country/Region': {'Taiwan*': 'Taiwan'}})
 
-# TO FIX
-# Taiwan*
-# Reunion and Jersey/Guernsey are technically France and UK, and Aruba/Curacao are Dutch
-# occupied Palestinian Territory --> Israel or Palestine?
-# Cruise ship -> Belongs to who?
-# Diamond Princess entries
+# Adding Reunion to France
+covid_df.loc[covid_df['Country/Region'] == 'Reunion','Province/State'] = 'Reunion'
+covid_df = covid_df.replace({'Country/Region': {'Reunion': 'France'}})
+
+# Adding Aruba to the Netherlands
+covid_df.loc[covid_df['Country/Region'] == 'Aruba','Province/State'] = 'Aruba'
+covid_df = covid_df.replace({'Country/Region': {'Aruba': 'Netherlands'}})
+
+# Jersey/Guernsey are Channel Islands, and so their cases are already counted, like those from U.S counties
+covid_df = covid_df[covid_df['Country/Region'].str.contains('Jersey')!=True]
+covid_df = covid_df[covid_df['Country/Region'].str.contains('Guernsey')!=True]
+
+# Entries marked with occupied Palestinian territory are governed by the Palestinian Authority, so I will mark them as
+# Palestine.
+covid_df = covid_df.replace({'Country/Region': {'occupied Palestinian territory': 'Palestine'}})
+
+# Cruise Ship/Diamond Princess/Grand Princess entries are cases of Covid that appeared on the Princess Cruise Ships during the
+# outbreak of the virus. I did not find information as to where those passengers disembarked, and moreover it seems
+# that like the counties in the U.S case, they are double counted for cases in the U.S, Canada and Australia.
+# Since they represent a small percentage of the total cases (0.4%), and since passengers will eventually desembark,
+# thus updating the data sources, I decided to neglect those cases in the map.
+covid_df = covid_df[covid_df['Country/Region'].str.contains('Cruise')!=True]
+covid_df = covid_df[covid_df['Province/State'].str.contains('Princess')!=True]
+
+
+# Data visualization
+
