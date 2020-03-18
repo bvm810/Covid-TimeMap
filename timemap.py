@@ -1,9 +1,17 @@
 """
-Script for creating time map with all cases of Covid-19 since 22/01/2020
+Script for creating time heat map with Covid-19 data since 22/01/2020. The script was set for showing confirmed cases,
+but is easily changeable for seeing number of deaths or number of recoveries. The data scraping and cleaning was done
+for all three cases, so it can be reused for other purposes or for plotting deaths/recoveries info.
+
+In order to use it, just run it using Python3 and open the output HTML file.
 """
 
 import wget
 import pandas as pd
+import numpy as np
+import folium
+import folium.plugins as plugins
+import os
 
 # Get data from Github
 
@@ -24,6 +32,14 @@ for idx in range(len(urls)):
 confirmed_df = pd.read_csv('covid-confirmed.csv')
 deaths_df = pd.read_csv('covid-deaths.csv')
 recovered_df = pd.read_csv('covid-recovered.csv')
+
+# Removing files so that the script doesn't fill the user computes with CSVs. Comment this if you want the datasets
+os.remove('./covid-confirmed.csv')
+os.remove('./covid-deaths.csv')
+os.remove('./covid-recovered.csv')
+
+# Save Dates used in data for later use in Heat Map
+dates = confirmed_df.columns[4:].tolist()
 
 # Data has each date as a column. In order to plot it more easily later we convert to single column called Date
 confirmed_df = pd.melt(confirmed_df, id_vars = ['Province/State', 'Country/Region', 'Lat', 'Long'],
@@ -90,6 +106,28 @@ covid_df = covid_df.replace({'Country/Region': {'occupied Palestinian territory'
 covid_df = covid_df[covid_df['Country/Region'].str.contains('Cruise')!=True]
 covid_df = covid_df[covid_df['Province/State'].str.contains('Princess')!=True]
 
-
 # Data visualization
 
+# Creating map with proper size
+map = folium.Map(width = 900, height = 600, location=[20, 0], zoom_start=2, min_zoom=2, max_zoom=3, max_bounds=True)
+
+# Putting data in required format
+# This part can be easily adapted to show deaths or recoveries by reusing this snippet on the 'Deaths'/'Recovery columns
+covid_df['Log Confirmed'] = np.log10(covid_df['Confirmed']) # Log-scaling data to ease visualization
+covid_df['Log Confirmed'] = covid_df['Log Confirmed'].replace({-np.inf: 0}) # Replacing zero cases (log=-inf) by value small enough to not be visible
+maximum = covid_df.max()['Log Confirmed'] # Getting max log value
+covid_df['Std Confirmed'] = covid_df['Log Confirmed'].div(maximum) # Min Max Scaling to match weight required interval
+
+data = [] # Setting up data in format required by HeatMapWithTime
+for date in dates:
+    # List of lists [lat, long, weight]. I added 1e-5 to all weights because the accepted interval is (0, 1]
+    day_data = zip(covid_df[covid_df['Date'] == date]['Lat'].tolist(), covid_df[covid_df['Date'] == date]['Long'].tolist(), covid_df[covid_df['Date'] == date]['Std Confirmed'].add(1e-5).tolist())
+    day_data = [list(elem) for elem in day_data]
+    data.append(day_data) # Appending on outer list corresponding to timestamps
+
+# Creting heat map
+heat_map = plugins.HeatMapWithTime(data, index=dates, min_speed=2.5, max_speed= 6, speed_step=0.5)
+heat_map.add_to(map)
+
+# Saving map as HTML file
+map.save('covid_map.html')
